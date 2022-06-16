@@ -12,6 +12,7 @@ namespace MoviesDotNetCore.Repositories
         Task<int> VoteByTitle(string title);
         Task<List<Movie>> Search(string search);
         Task<D3Graph> FetchD3Graph(int limit);
+        Task<EChartsGraph> FetchEChartsGraph(int limit);
     }
 
     public class MovieRepository : IMovieRepository
@@ -116,7 +117,7 @@ namespace MoviesDotNetCore.Repositories
                 return await session.ReadTransactionAsync(async transaction =>
                 {
                     var cursor = await transaction.RunAsync(@"
-                        MATCH (m:Movie)<-[:ACTED_IN]-(p:Person)
+                        MATCH (m:Movie)<-[]-(p:Person)
                         WITH m, p
                         ORDER BY m.title, p.name
                         RETURN m.title AS title, collect(p.name) AS cast
@@ -141,6 +142,62 @@ namespace MoviesDotNetCore.Repositories
                         }
                     }
                     return new D3Graph(nodes, links);
+                });
+            }
+            finally
+            {
+                await session.CloseAsync();
+            }
+        }
+
+        public async Task<EChartsGraph> FetchEChartsGraph(int limit)
+        {
+            var session = _driver.AsyncSession(WithDatabase);
+            try
+            {
+                return await session.ReadTransactionAsync(async transaction =>
+                {
+                    var cursor = await transaction.RunAsync(@"
+                        MATCH (m:Movie)<-[r]-(p:Person)
+                        RETURN m.title as title, type(r) as rel_type, count(p) as cast_count, collect(p.name) as cast
+                        LIMIT $limit",
+                        new {limit}
+                    );
+
+                    var nodes = new List<EChartsNode>();
+                    var links = new List<EChartsLink>();
+                    var categories = new List<EChartsCategory>{
+                        new EChartsCategory{Name = "Movie"},
+                        new EChartsCategory{Name = "Person"}
+                    };
+
+                    var records = await cursor.ToListAsync();
+                    foreach (var record in records)
+                    {
+                        var movie = new EChartsNode{Name=record["title"].As<string>(), Value=record["cast_count"].As<int>(), Category=0};
+                        var movieIndex = nodes.IndexOf(movie);
+                        movieIndex = movieIndex == -1 ? nodes.Count : movieIndex;
+
+                        if(!nodes.Exists(m => m.Name == movie.Name))
+                            nodes.Add(movie);
+                        else
+                            nodes.First(n => n.Name == movie.Name).Value += record["cast_count"].As<int>();
+
+                        var relType = record["rel_type"].As<string>();
+
+                        foreach (var actorName in record["cast"].As<IList<string>>())
+                        {
+                            var actor = new EChartsNode{Name=actorName, Value=1, Category=1};
+                            var actorIndex = nodes.IndexOf(actor);
+                            actorIndex = actorIndex == -1 ? nodes.Count : actorIndex;
+
+                            if(!nodes.Exists(a => a.Name == actor.Name))
+                                nodes.Add(actor);
+
+                            links.Add(new EChartsLink{Source=actorIndex, Target=movieIndex, Label=new {formatter=relType}});
+                        }
+                    }
+                    return new EChartsGraph(nodes, links, categories);
                 });
             }
             finally

@@ -44,5 +44,13 @@ namespace MoviesDotNetCore.Controllers
         {
             return await _movieRepository.FetchD3Graph(limit <= 0 ? 50 : limit);
         }
+
+
+        [Route("/echarts")]
+        [HttpGet]
+        public async Task<EChartsGraph> FetchEChartsGraph([FromQuery(Name = "limit")] int limit = 100)
+        {
+            return await _movieRepository.FetchEChartsGraph(limit);
+        }
     }
 }

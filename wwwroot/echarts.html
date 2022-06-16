@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts for Movies</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts@5.3.3/dist/echarts.min.js"></script>
+    <style type="text/css">
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%
+        }
+        h1{
+            font-size: 1.5em;
+            margin-top: 0;
+            margin-bottom: 0;
+            padding: .2em;
+            background: #cef;
+        }
+        #echarts{
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<h1>ECharts Graph</h1>
+<div id="echarts"></div>
+
+<script type="text/javascript">
+      var myChart = echarts.init(document.getElementById("echarts"));
+
+      myChart.showLoading();
+
+      $.get("/echarts?limit=1000").done(function(graph){
+        myChart.hideLoading();
+
+        graph.nodes.forEach(function (node) {
+            node.label = {
+                show: node.symbolSize > 20
+            };
+        });
+
+        option = {
+            legend: {
+                data: ['Movie', 'Person']
+            },
+            series: [
+                {
+                    type: 'graph',
+                    layout: 'force',
+                    animation: true,
+                    draggable: true,
+                    roam: true,
+                    selectedMode: true,
+                    label: {
+                        show: false
+                    },
+                    edgeLabel: {
+                    },
+                    lineStyle: {
+                        curveness: 0
+                    },
+                    emphasis: {
+                        focus: 'adjacency',
+                        lineStyle: {
+                            width: 5
+                        }
+                    },
+                    force: {
+                        repulsion: 50
+                    },
+                    nodes: graph.nodes.map(function(node){
+                        return {
+                            name: node.name,
+                            value: node.value,
+                            category: node.category,
+                            symbolSize: node.category == 0 ? node.value * 100 % 60 : 10
+                        }
+                    }),
+                    links: graph.links,
+                    categories: graph.categories.map(function(category){
+                        return {
+                            name: category.name,
+                            symbol: 'image:///assets/img/icon_' + category.name.toLowerCase() + '.png'
+                        }
+                    })
+                }
+            ]
+        };
+        myChart.setOption(option);
+      })
+</script>
+
+</body>
+</html>
